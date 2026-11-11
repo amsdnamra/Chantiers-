@@ -59,7 +59,9 @@ a{color:var(--acc)}
 .note b{padding-right:22px}
 .rk{position:absolute;left:8px;bottom:6px;font-size:12px;font-weight:700;background:#2b2a27;color:#fff;border-radius:99px;min-width:20px;height:20px;line-height:20px;text-align:center;padding:0 5px}
 .sec{font-size:15px;margin:22px 0 4px;color:var(--mut)}
-.seg{display:flex;gap:6px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg.w label{flex:1 1 100%}
+.ty{font-size:12px;font-weight:600}
 .seg label{flex:1;margin:0;cursor:pointer;color:var(--fg)}
 .seg input{display:none}
 .seg span{display:block;text-align:center;padding:8px 4px;border:2px solid var(--bd);border-radius:8px;font-size:14px}
@@ -79,11 +81,15 @@ a{color:var(--acc)}
 <div class="leg" id="leg"></div>
 <div id="main"></div>
 <div id="md"></div>
-<p class="mut" style="text-align:center;margin-top:30px">v3 · clients</p>
+<p class="mut" style="text-align:center;margin-top:30px">v4 · couleurs</p>
 <script>
-const COL=[{id:'jaune',n:'Jaune',c:'#ffe66d'},{id:'orange',n:'Orange',c:'#ffb870'},{id:'rouge',n:'Rouge',c:'#ff9c9c'},{id:'rose',n:'Rose',c:'#ffb8e1'},{id:'bleu',n:'Bleu',c:'#9cd0ff'},{id:'vert',n:'Vert',c:'#a8e6a1'}];
+const COL=[['jaune','Jaune','#ffe66d'],['citron','Citron','#dcf06b'],['vert','Vert','#a8e6a1'],['turquoise','Turquoise','#8ee8e0'],['bleu','Bleu','#9cd0ff'],['indigo','Indigo','#aab4ff'],['violet','Violet','#cdb0ff'],['rose','Rose','#ffb8e1'],['rouge','Rouge','#ff9c9c'],['orange','Orange','#ffb870'],['sable','Sable','#e8d5a9'],['gris','Gris','#d5d5d5']].map(a=>({id:a[0],n:a[1],c:a[2]}));
+const TYPES=[{id:'place',n:'Sur place',i:'🏠',c:'#2e9e5b'},{id:'proche',n:'Déplacement proche',i:'🚗',c:'#e67e00'},{id:'couchage',n:'Déplacement avec couchage',i:'🛏️',c:'#7b4bd6'}];
+const typeOf=id=>TYPES.find(t=>t.id===id)||TYPES[0];
+const col=i=>(cl(i)||{}).couleur||i.couleur;
+const chipF=(k,bg,l)=>'<span class="chip'+(filt.size&&!filt.has(k)?' off':'')+'" data-f="'+k+'" style="cursor:pointer"><i style="background:'+bg+'"></i>'+esc(l)+'</span>';
 const colOf=id=>COL.find(c=>c.id===id)||COL[0];
-let items=[],view='p',cur=new Date(),filt=new Set(),urg=false,past=false,canW=true,db=null;
+let items=[],view='p',cur=new Date(),filt=new Set(),urg=false,past=false,canW=true,db=null,clients=[],mgr=false,dbc=null;
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -100,7 +106,7 @@ const when=n=>n<0?'dépassée de '+(-n)+' j':n===0?'aujourd’hui':n===1?'demain
 const dlTxt=i=>{const n=dl(i);if(n===null||i.fait)return'';return'<div class="lm'+(n<=3?' hot':'')+'">⏰ '+fmt(i.limite)+' · '+when(n)+'</div>'};
 const undated=()=>items.filter(i=>!i.debut).sort((a,b)=>lvl(b)-lvl(a)||(a.cree||0)-(b.cree||0)||(a.titre||'').localeCompare(b.titre||''));
 const sorted=()=>items.filter(i=>i.debut).sort((a,b)=>a.debut.localeCompare(b.debut)||(a.fin||'').localeCompare(b.fin||'')||(a.titre||'').localeCompare(b.titre||''));
-const ok=i=>(!filt.size||filt.has(i.couleur))&&(!urg||lvl(i)===2);
+const ok=i=>(!filt.size||filt.has(i.clientId)||filt.has(i.type))&&(!urg||lvl(i)===2);
 const vis=()=>sorted().filter(ok);
 const msg=t=>{$('#bn').innerHTML=t?'<div class="bn">'+esc(t)+'</div>':''};
 
@@ -113,13 +119,13 @@ function render(){
   rem();
   $('#tp').className=view==='p'?'on':'';$('#tc').className=view==='c'?'on':'';
   $('#add').hidden=!(canW&&db);$('#sh').hidden=!db;$('#cl').hidden=!db;
-  $('#leg').innerHTML='<span class="chip" data-u style="cursor:pointer;'+(urg?'border:2px solid #d62828;':'')+'"><span class="tri" style="margin:0"></span>Urgent</span>'+COL.map(c=>'<span class="chip'+(filt.size&&!filt.has(c.id)?' off':'')+'" data-f="'+c.id+'" style="cursor:pointer"><i style="background:'+c.c+'"></i>'+c.n+'</span>').join('')+(view==='p'?'<label class="mut" style="margin-left:auto"><input type="checkbox" id="pc" '+(past?'checked':'')+'> Voir les terminés</label>':'');
+  $('#leg').innerHTML='<span class="chip" data-u style="cursor:pointer;'+(urg?'border:2px solid #d62828;':'')+'"><span class="tri" style="margin:0"></span>Urgent</span>'+TYPES.map(t=>chipF(t.id,t.c,t.i+' '+t.n)).join('')+clients.map(c=>chipF(c.id,colOf(c.couleur).c,c.nom)).join('')+(view==='p'?'<label class="mut" style="margin-left:auto"><input type="checkbox" id="pc" '+(past?'checked':'')+'> Voir les terminés</label>':'');
   view==='p'?wall():cal();
 }
 function wall(){
   let l=vis();if(!past)l=l.filter(i=>(i.fin||i.debut)>=today&&!i.fait);const u=undated().filter(ok).filter(i=>past||!i.fait);
   if(!l.length&&!u.length){$('#main').innerHTML='<div class="empty">Aucun chantier à afficher.'+(canW&&db?'<br>Appuie sur « ＋ Chantier » pour commencer.':'')+'</div>';return}
-  const nt=(i,k,n)=>'<div class="note'+((i.fait||(i.debut&&(i.fin||i.debut)<today))?' past':'')+'" data-id="'+i.id+'" style="background:'+colOf(i.couleur).c+';--r:'+[-1.6,1.2,-.8,1.8,-1.2,.7][k%6]+'deg">'+badge(i)+'<b>'+esc(i.titre)+'</b><div class="d">'+range({debut:i.debut,fin:i.fin})+'</div>'+(cl(i)?'<div>👤 '+esc(cl(i).nom)+'</div>':'')+((i.lieu||(cl(i)||{}).adresse)?'<div>📍 '+esc(i.lieu||cl(i).adresse)+'</div>':'')+dlTxt(i)+'<span class="s">'+(i.fait?'✓ Terminé':status({debut:i.debut,fin:i.fin||i.debut}))+'</span>'+(n?'<span class="rk">'+n+'</span>':'')+'</div>';
+  const nt=(i,k,n)=>'<div class="note'+((i.fait||(i.debut&&(i.fin||i.debut)<today))?' past':'')+'" data-id="'+i.id+'" style="background:'+colOf(col(i)).c+';border-left:10px solid '+(i.type?typeOf(i.type).c:'transparent')+';--r:'+[-1.6,1.2,-.8,1.8,-1.2,.7][k%6]+'deg">'+badge(i)+'<b>'+esc(i.titre)+'</b><div class="d">'+range({debut:i.debut,fin:i.fin})+'</div>'+(i.type?'<div class="ty">'+typeOf(i.type).i+' '+typeOf(i.type).n+'</div>':'')+(cl(i)?'<div>👤 '+esc(cl(i).nom)+'</div>':'')+((i.lieu||(cl(i)||{}).adresse)?'<div>📍 '+esc(i.lieu||cl(i).adresse)+'</div>':'')+dlTxt(i)+'<span class="s">'+(i.fait?'✓ Terminé':status({debut:i.debut,fin:i.fin||i.debut}))+'</span>'+(n?'<span class="rk">'+n+'</span>':'')+'</div>';
   $('#main').innerHTML=(l.length?'<div class="wall">'+l.map((i,k)=>nt(i,k)).join('')+'</div>':'')+(u.length?'<h3 class="sec">Sans date · ordre d’exécution</h3><div class="wall">'+u.map((i,k)=>nt(i,k,k+1)).join('')+'</div>':'');
 }
 function cal(){
@@ -128,7 +134,7 @@ function cal(){
   for(let k=0;k<off;k++)h+='<div class="cell off"></div>';
   for(let d=1;d<=nd;d++){
     const s=iso(new Date(y,m,d));
-    h+='<div class="cell'+(s===today?' today':'')+'"><div class="n">'+d+'</div>'+l.filter(i=>i.debut<=s&&s<=(i.fin||i.debut)).map(i=>'<button class="ev" data-id="'+i.id+'" style="background:'+colOf(i.couleur).c+'">'+badge(i)+esc(i.titre)+'</button>').join('')+items.filter(i=>i.limite===s&&!i.fait&&ok(i)).map(i=>'<button class="ev dl" data-id="'+i.id+'">⏰ '+esc(i.titre)+'</button>').join('')+'</div>';
+    h+='<div class="cell'+(s===today?' today':'')+'"><div class="n">'+d+'</div>'+l.filter(i=>i.debut<=s&&s<=(i.fin||i.debut)).map(i=>'<button class="ev" data-id="'+i.id+'" style="background:'+colOf(col(i)).c+';'+(i.type?'border-left:4px solid '+typeOf(i.type).c+';':'')+'">'+badge(i)+esc(i.titre)+'</button>').join('')+items.filter(i=>i.limite===s&&!i.fait&&ok(i)).map(i=>'<button class="ev dl" data-id="'+i.id+'">⏰ '+esc(i.titre)+'</button>').join('')+'</div>';
   }
   const nu=undated().filter(ok).length;$('#main').innerHTML=h+'</div>'+(nu?'<p class="mut">'+nu+' chantier'+(nu>1?'s':'')+' sans date (voir l’onglet Post-it)</p>':'');
 }
@@ -136,17 +142,17 @@ function open(html){$('#md').innerHTML='<div class="ov" id="ov"><div class="mod"
 function close(){mgr=false;$('#md').innerHTML=''}
 function detail(id){
   const i=items.find(x=>x.id===id);if(!i)return;
-  open('<div style="display:flex;align-items:center;gap:8px"><i style="width:16px;height:16px;border-radius:50%;background:'+colOf(i.couleur).c+'"></i><h2 style="margin:0;font-size:20px">'+esc(i.titre)+'</h2>'+(lvl(i)===2?'<span class="tri" style="margin-left:4px"></span><b style="color:#d62828">Urgent</b>':lvl(i)===1?'<b class="pri" style="margin-left:4px">★ Prioritaire</b>':'')+'</div><p><b>'+range({debut:i.debut,fin:i.fin})+'</b>'+(i.debut?' · '+status({debut:i.debut,fin:i.fin||i.debut}):'')+'</p>'+(cl(i)?clientCard(cl(i)):'')+(i.lieu?'<p>📍 '+esc(i.lieu)+'</p>':'')+dlTxt(i)+(i.fait?'<p><b>✓ Terminé</b></p>':'')+(i.notes?'<p style="white-space:pre-wrap">'+esc(i.notes)+'</p>':'')+'<div class="row">'+(canW&&db?'<button data-done="'+id+'">'+(i.fait?'Rouvrir':'✓ Terminé')+'</button><button data-edit="'+id+'">Modifier</button><button data-del="'+id+'">Supprimer</button>':'')+'<button data-x>Fermer</button></div>');
+  open('<div style="display:flex;align-items:center;gap:8px"><i style="width:16px;height:16px;border-radius:50%;background:'+colOf(col(i)).c+'"></i><h2 style="margin:0;font-size:20px">'+esc(i.titre)+'</h2>'+(lvl(i)===2?'<span class="tri" style="margin-left:4px"></span><b style="color:#d62828">Urgent</b>':lvl(i)===1?'<b class="pri" style="margin-left:4px">★ Prioritaire</b>':'')+'</div><p><b>'+range({debut:i.debut,fin:i.fin})+'</b>'+(i.debut?' · '+status({debut:i.debut,fin:i.fin||i.debut}):'')+'</p>'+(i.type?'<p>'+typeOf(i.type).i+' '+typeOf(i.type).n+'</p>':'')+(cl(i)?clientCard(cl(i)):'')+(i.lieu?'<p>📍 '+esc(i.lieu)+'</p>':'')+dlTxt(i)+(i.fait?'<p><b>✓ Terminé</b></p>':'')+(i.notes?'<p style="white-space:pre-wrap">'+esc(i.notes)+'</p>':'')+'<div class="row">'+(canW&&db?'<button data-done="'+id+'">'+(i.fait?'Rouvrir':'✓ Terminé')+'</button><button data-edit="'+id+'">Modifier</button><button data-del="'+id+'">Supprimer</button>':'')+'<button data-x>Fermer</button></div>');
 }
 function form(id){
   const i=items.find(x=>x.id===id)||{couleur:'jaune',debut:today,fin:today};
-  open('<h2 style="margin:0;font-size:20px">'+(id?'Modifier':'Nouveau')+' chantier</h2><label>Nom du chantier</label><input id="f-t" value="'+esc(i.titre)+'"><label>Client</label><select id="f-c"><option value="">— Aucun —</option>'+clients.map(c=>'<option value="'+c.id+'"'+(c.id===i.clientId?' selected':'')+'>'+esc(c.nom)+'</option>').join('')+'</select>'+(clients.length?'':'<div class="mut" style="margin-top:4px">Aucun client : ajoute-en depuis l’onglet 👥 Clients.</div>')+'<label>Lieu du chantier (si différent de l’adresse du client)</label><input id="f-l" value="'+esc(i.lieu)+'"><label>Début (facultatif)</label><input id="f-d" type="date" value="'+esc(i.debut)+'"><label>Fin (facultatif)</label><input id="f-f" type="date" value="'+esc(i.fin)+'"><button type="button" data-nodate style="margin-top:6px;font-size:13px">Retirer les dates</button><label>Date limite (facultatif) — déclenche des rappels</label><input id="f-lim" type="date" value="'+esc(i.limite)+'"><label>Couleur</label><div class="sw">'+COL.map(c=>'<label title="'+c.n+'"><input type="radio" name="co" value="'+c.id+'"'+(c.id===i.couleur?' checked':'')+'><span style="background:'+c.c+'"></span></label>').join('')+'</div><label>Priorité</label><div class="seg">'+[['','Normale'],['prio','★ Prioritaire'],['urgent','🔺 Urgent']].map(p=>'<label><input type="radio" name="pr" value="'+p[0]+'"'+(p[0]===(lvl(i)===2?'urgent':lvl(i)===1?'prio':'')?' checked':'')+'><span>'+p[1]+'</span></label>').join('')+'</div><label>Notes</label><textarea id="f-n" rows="3">'+esc(i.notes)+'</textarea><div id="f-e" class="mut" style="color:#c0392b;margin-top:8px"></div><div class="row"><button class="p" data-save="'+(id||'')+'">Enregistrer</button><button data-x>Annuler</button></div>');
+  open('<h2 style="margin:0;font-size:20px">'+(id?'Modifier':'Nouveau')+' chantier</h2><label>Nom du chantier</label><input id="f-t" value="'+esc(i.titre)+'"><label>Client</label><select id="f-c"><option value="">— Aucun —</option>'+clients.map(c=>'<option value="'+c.id+'"'+(c.id===i.clientId?' selected':'')+'>'+esc(c.nom)+'</option>').join('')+'</select>'+(clients.length?'':'<div class="mut" style="margin-top:4px">Aucun client : ajoute-en depuis l’onglet 👥 Clients.</div>')+'<label>Lieu du chantier (si différent de l’adresse du client)</label><input id="f-l" value="'+esc(i.lieu)+'"><label>Début (facultatif)</label><input id="f-d" type="date" value="'+esc(i.debut)+'"><label>Fin (facultatif)</label><input id="f-f" type="date" value="'+esc(i.fin)+'"><button type="button" data-nodate style="margin-top:6px;font-size:13px">Retirer les dates</button><label>Date limite (facultatif) — déclenche des rappels</label><input id="f-lim" type="date" value="'+esc(i.limite)+'"><label>Type de chantier</label><div class="seg w">'+[['','Non précisé']].concat(TYPES.map(t=>[t.id,t.i+' '+t.n])).map(p=>'<label><input type="radio" name="ty" value="'+p[0]+'"'+(p[0]===(i.type||'')?' checked':'')+'><span>'+p[1]+'</span></label>').join('')+'</div><label>Couleur (si aucun client)</label><div class="sw">'+COL.map(c=>'<label title="'+c.n+'"><input type="radio" name="co" value="'+c.id+'"'+(c.id===i.couleur?' checked':'')+'><span style="background:'+c.c+'"></span></label>').join('')+'</div><label>Priorité</label><div class="seg">'+[['','Normale'],['prio','★ Prioritaire'],['urgent','🔺 Urgent']].map(p=>'<label><input type="radio" name="pr" value="'+p[0]+'"'+(p[0]===(lvl(i)===2?'urgent':lvl(i)===1?'prio':'')?' checked':'')+'><span>'+p[1]+'</span></label>').join('')+'</div><label>Notes</label><textarea id="f-n" rows="3">'+esc(i.notes)+'</textarea><div id="f-e" class="mut" style="color:#c0392b;margin-top:8px"></div><div class="row"><button class="p" data-save="'+(id||'')+'">Enregistrer</button><button data-x>Annuler</button></div>');
 }
 async function save(id){
   const t=$('#f-t').value.trim(),d=$('#f-d').value,f=d?($('#f-f').value||d):'',e=$('#f-e');
   if(!t){e.textContent='Le nom est obligatoire.';return}
   if(f<d){e.textContent='La fin doit être après le début.';return}
-  const data={titre:t,lieu:$('#f-l').value.trim(),debut:d,fin:f,couleur:(document.querySelector('input[name=co]:checked')||{}).value||'jaune',clientId:$('#f-c').value,limite:$('#f-lim').value,fait:!!(items.find(x=>x.id===id)||{}).fait,prio:(document.querySelector('input[name=pr]:checked')||{}).value||'',cree:((items.find(x=>x.id===id)||{}).cree)||Date.now(),notes:$('#f-n').value.trim()};
+  const data={titre:t,lieu:$('#f-l').value.trim(),debut:d,fin:f,couleur:(document.querySelector('input[name=co]:checked')||{}).value||'jaune',type:(document.querySelector('input[name=ty]:checked')||{}).value||'',clientId:$('#f-c').value,limite:$('#f-lim').value,fait:!!(items.find(x=>x.id===id)||{}).fait,prio:(document.querySelector('input[name=pr]:checked')||{}).value||'',cree:((items.find(x=>x.id===id)||{}).cree)||Date.now(),notes:$('#f-n').value.trim()};
   try{const c=db.collection('chantiers');id?await c.doc(id).set(data):await c.add(data);close()}
   catch(x){e.textContent='Enregistrement impossible. Réessaie.'}
 }
@@ -170,7 +176,7 @@ document.addEventListener('click',async e=>{
 });
 document.addEventListener('change',e=>{if(e.target.id==='pc'){past=e.target.checked;render()}});
 render();
-let room='',clients=[],mgr=false,dbc=null;
+let room='';
 const cfgParse=t=>{const o={};(t.match(/(\w+)\s*:\s*["']([^"']+)["']/g)||[]).forEach(m=>{const r=m.match(/(\w+)\s*:\s*["']([^"']+)["']/);o[r[1]]=r[2]});return o};
 async function start(cfg,rm){
   const V='https://www.gstatic.com/firebasejs/10.12.2/';
@@ -217,16 +223,16 @@ const maps=a=>'https://maps.apple.com/?q='+encodeURIComponent(a);
 const clientCard=c=>'<div style="border:1px solid var(--bd);border-radius:10px;padding:8px 10px;margin:8px 0"><b>👤 '+esc(c.nom)+'</b>'+(c.adresse?'<div><a href="'+maps(c.adresse)+'">📍 '+esc(c.adresse)+'</a></div>':'')+(c.tel?'<div><a href="tel:'+esc(c.tel.replace(/\s/g,''))+'">📞 '+esc(c.tel)+'</a></div>':'')+(c.email?'<div><a href="mailto:'+esc(c.email)+'">✉️ '+esc(c.email)+'</a></div>':'')+'</div>';
 function clientsModal(){
   mgr=true;
-  open('<h2 style="margin:0;font-size:20px">👥 Clients</h2>'+(clients.length?clients.map(c=>'<div style="padding:10px 0;border-bottom:1px solid var(--bd)"><b>'+esc(c.nom)+'</b>'+(c.adresse?'<div class="mut">📍 '+esc(c.adresse)+'</div>':'')+(c.tel?'<div class="mut">📞 '+esc(c.tel)+'</div>':'')+(c.email?'<div class="mut">✉️ '+esc(c.email)+'</div>':'')+'<div class="row" style="margin-top:8px"><button data-cedit="'+c.id+'">Modifier</button><button data-cdel="'+c.id+'">Supprimer</button></div></div>').join(''):'<p class="mut">Aucun client pour le moment.</p>')+'<div class="row"><button class="p" data-cnew>＋ Nouveau client</button><button data-x>Fermer</button></div>');
+  open('<h2 style="margin:0;font-size:20px">👥 Clients</h2>'+(clients.length?clients.map(c=>'<div style="padding:10px 0;border-bottom:1px solid var(--bd)"><b><i style="display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;background:'+colOf(c.couleur).c+'"></i>'+esc(c.nom)+'</b>'+(c.adresse?'<div class="mut">📍 '+esc(c.adresse)+'</div>':'')+(c.tel?'<div class="mut">📞 '+esc(c.tel)+'</div>':'')+(c.email?'<div class="mut">✉️ '+esc(c.email)+'</div>':'')+'<div class="row" style="margin-top:8px"><button data-cedit="'+c.id+'">Modifier</button><button data-cdel="'+c.id+'">Supprimer</button></div></div>').join(''):'<p class="mut">Aucun client pour le moment.</p>')+'<div class="row"><button class="p" data-cnew>＋ Nouveau client</button><button data-x>Fermer</button></div>');
 }
 function clientForm(id){
   mgr=false;
   const c=clients.find(x=>x.id===id)||{};
-  open('<h2 style="margin:0;font-size:20px">'+(id?'Modifier':'Nouveau')+' client</h2><label>Nom</label><input id="c-n" value="'+esc(c.nom)+'"><label>Adresse</label><input id="c-a" value="'+esc(c.adresse)+'"><label>Téléphone</label><input id="c-t" type="tel" value="'+esc(c.tel)+'"><label>E-mail</label><input id="c-e" type="email" value="'+esc(c.email)+'"><div id="c-er" style="color:#c0392b;font-size:13px;margin-top:8px"></div><div class="row"><button class="p" data-csave="'+(id||'')+'">Enregistrer</button><button data-clist>Annuler</button></div>');
+  open('<h2 style="margin:0;font-size:20px">'+(id?'Modifier':'Nouveau')+' client</h2><label>Nom</label><input id="c-n" value="'+esc(c.nom)+'"><label>Adresse</label><input id="c-a" value="'+esc(c.adresse)+'"><label>Téléphone</label><input id="c-t" type="tel" value="'+esc(c.tel)+'"><label>E-mail</label><input id="c-e" type="email" value="'+esc(c.email)+'"><label>Couleur du client</label><div class="sw">'+COL.map(k=>'<label title="'+k.n+'"><input type="radio" name="cc" value="'+k.id+'"'+(k.id===(c.couleur||'jaune')?' checked':'')+'><span style="background:'+k.c+'"></span></label>').join('')+'</div><div id="c-er" style="color:#c0392b;font-size:13px;margin-top:8px"></div><div class="row"><button class="p" data-csave="'+(id||'')+'">Enregistrer</button><button data-clist>Annuler</button></div>');
 }
 async function csave(id){
   const n=$('#c-n').value.trim();if(!n){$('#c-er').textContent='Le nom est obligatoire.';return}
-  const d={nom:n,adresse:$('#c-a').value.trim(),tel:$('#c-t').value.trim(),email:$('#c-e').value.trim()};
+  const d={nom:n,adresse:$('#c-a').value.trim(),tel:$('#c-t').value.trim(),email:$('#c-e').value.trim(),couleur:(document.querySelector('input[name=cc]:checked')||{}).value||'jaune'};
   try{id?await dbc.doc(id).set(d):await dbc.add(d);clientsModal()}catch(x){$('#c-er').textContent='Enregistrement impossible : vérifie les règles Firebase.'}
 }
 document.addEventListener('click',async e=>{
